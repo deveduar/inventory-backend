@@ -5,10 +5,19 @@ const axios = require('axios');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Ruta para obtener productos de Printful con categorías, precios y rating por defecto
+// Ruta para obtener productos de Printful con categorías, precios, rating por defecto y nuevo ID secuencial
 app.get('/api/products', async (req, res) => {
   try {
-    // Obtener todos los productos de Printful
+    // 1. Obtener todas las categorías de Printful
+    const categoryResponse = await axios.get('https://api.printful.com/categories', {
+      headers: {
+        'Authorization': `Bearer ${process.env.PRINTFUL_API_KEY}`
+      }
+    });
+
+    const categories = categoryResponse.data.result.categories;
+
+    // 2. Obtener todos los productos de Printful
     const productResponse = await axios.get('https://api.printful.com/store/products', {
       headers: {
         'Authorization': `Bearer ${process.env.PRINTFUL_API_KEY}`
@@ -17,8 +26,8 @@ app.get('/api/products', async (req, res) => {
 
     const products = productResponse.data.result;
 
-    // Crear un arreglo de promesas para obtener detalles de cada producto
-    const productDetailsPromises = products.map(async (product) => {
+    // 3. Crear un arreglo de promesas para obtener detalles de cada producto
+    const productDetailsPromises = products.map(async (product, index) => {
       const productId = product.id;
 
       // Obtener detalles del producto por ID
@@ -32,30 +41,20 @@ app.get('/api/products', async (req, res) => {
       const categoryId = productDetails.main_category_id;
       const price = productDetails.retail_price;
 
-      // Obtener la categoría del producto usando el `main_category_id`
-      let category = 'Unknown'; // Valor por defecto en caso de que falle la petición de categoría
-      try {
-        const categoryResponse = await axios.get(`https://api.printful.com/categories/${categoryId}`, {
-          headers: {
-            'Authorization': `Bearer ${process.env.PRINTFUL_API_KEY}`
-          }
-        });
-        category = categoryResponse.data.result.title; // Obtener el título de la categoría
-      } catch (categoryError) {
-        console.error(`Error fetching category for categoryId ${categoryId}:`, categoryError.message);
-      }
+      // 4. Buscar la categoría por el main_category_id en la lista de categorías obtenidas
+      const category = categories.find(cat => cat.id === categoryId)?.title || 'Unknown';
 
       // Devolver los datos mapeados a la estructura esperada por el frontend
       return {
-        id: productId,
+        id: index + 1, // Generar un nuevo ID secuencial empezando en 1
         title: product.name,
         price: price,
-        description: productDetails.name, // Puedes ajustar este campo según lo que esperes
+        description: productDetails.name, // Ajustar este campo según lo que esperes
         category: category, // La categoría obtenida a partir del main_category_id
         image: productDetails.product.image,
         rating: {
-          rate: 0,  // Valor predeterminado
-          count: 0  // Valor predeterminado
+          rate: 0,  // Valor predeterminado para 'rate'
+          count: 0  // Valor predeterminado para 'count'
         }
       };
     });
@@ -63,7 +62,7 @@ app.get('/api/products', async (req, res) => {
     // Esperar a que todas las promesas se resuelvan
     const productsWithCategories = await Promise.all(productDetailsPromises);
 
-    // Enviar los productos con detalles y categorías al frontend
+    // Enviar los productos con detalles, categorías y nuevos IDs al frontend
     res.json(productsWithCategories);
 
   } catch (error) {
