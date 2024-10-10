@@ -41,6 +41,13 @@ app.get('/api/products', async (req, res) => {
       const categoryId = productDetails.main_category_id;
       const price = productDetails.retail_price;
 
+      // Obtener las imágenes del producto
+      const files = productDetails.files;
+
+      // Filtrar las URLs de las imágenes de "front" y "preview"
+      const frontImage = files.find(file => file.type === 'front')?.preview_url || '';
+      const previewImage = files.find(file => file.type === 'preview')?.preview_url || '';
+
       // 4. Buscar la categoría por el main_category_id en la lista de categorías obtenidas
       const category = categories.find(cat => cat.id === categoryId)?.title || 'Unknown';
 
@@ -48,10 +55,13 @@ app.get('/api/products', async (req, res) => {
       return {
         id: index + 1, // Generar un nuevo ID secuencial empezando en 1
         title: product.name,
-        price: price,
+        price: parseFloat(price), // Asegurarse de que el precio es un número
         description: productDetails.name, // Ajustar este campo según lo que esperes
         category: category, // La categoría obtenida a partir del main_category_id
-        image: productDetails.product.image,
+        images: {
+          front: frontImage,   // Imagen frontal
+          preview: previewImage // Imagen de vista previa o fondo
+        },
         rating: {
           rate: 0,  // Valor predeterminado para 'rate'
           count: 0  // Valor predeterminado para 'count'
@@ -62,7 +72,7 @@ app.get('/api/products', async (req, res) => {
     // Esperar a que todas las promesas se resuelvan
     const productsWithCategories = await Promise.all(productDetailsPromises);
 
-    // Enviar los productos con detalles, categorías y nuevos IDs al frontend
+    // Enviar los productos con detalles, categorías, imágenes y nuevos IDs al frontend
     res.json(productsWithCategories);
 
   } catch (error) {
